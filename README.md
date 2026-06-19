@@ -200,7 +200,7 @@ POST /api/update-data (SSE)
 配置方式（二选一）：
 
 - **方式 A**：可以稍后进入前端界面，点击"模型设置"实时配置模型。（每次启动服务时，需重新在前端界面配置模型）
-- **方式 B**（推荐）：手动编辑项目根目录下的 `.env` 文件（用记事本打开）：
+- **方式 B**：手动编辑项目根目录下的 `.env` 文件（用记事本打开）：
   ```env
   DEEPSEEK_API_KEY=你的API Key
   DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -209,7 +209,7 @@ POST /api/update-data (SSE)
 
 #### 第 4 步：一键启动
 
-双击项目根目录下的 **`start.bat`**，或在项目根目录打开 cmd 执行：
+双击项目根目录下的 **`start.exe`**，或在项目根目录打开 cmd 执行：
 
 ```
 python start.py
