@@ -190,9 +190,9 @@ POST /api/update-data (SSE)
 
 | 服务 | 获取地址 | Base URL | 推荐模型 |
 |-----|---------|----------|---------|
-| DeepSeek | https://platform.deepseek.com | https://api.deepseek.com | deepseek-chat |
-| Kimi | https://platform.moonshot.cn | https://api.moonshot.cn/v1 | moonshot-v1-32k |
-| 通义千问 | https://dashscope.console.aliyun.com | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-plus |
+| DeepSeek | https://platform.deepseek.com | https://api.deepseek.com | deepseek-v4-flash |
+| Kimi | https://platform.moonshot.cn | https://api.moonshot.cn/v1 | kimi-k2.6 |
+| 通义千问 | https://dashscope.console.aliyun.com | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen |
 | Ollama（本地） | https://ollama.com | http://localhost:11434/v1 | qwen2.5 |
 
 > **推荐 DeepSeek**：价格低、中文能力强、兼容性好。
