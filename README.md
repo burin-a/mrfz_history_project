@@ -188,11 +188,11 @@ POST /api/update-data (SSE)
 
 你需要一个大语言模型的 API Key，用于驱动 AI 回答。支持以下服务：
 
-| 服务 | 获取地址 | Base URL | 推荐模型 |
+| 服务 | 获取地址 | Base URL | 推荐模型 (名称以实际为准) |
 |-----|---------|----------|---------|
 | DeepSeek | https://platform.deepseek.com | https://api.deepseek.com | deepseek-v4-flash |
 | Kimi | https://platform.moonshot.cn | https://api.moonshot.cn/v1 | kimi-k2.6 |
-| 通义千问 | https://dashscope.console.aliyun.com | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen |
+| 通义千问 | https://dashscope.console.aliyun.com | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen3.7-max |
 | Ollama（本地） | https://ollama.com | http://localhost:11434/v1 | qwen2.5 |
 
 > **推荐 DeepSeek**：价格低、中文能力强、兼容性好。
@@ -238,7 +238,7 @@ python start.py
 
 **首次运行注意事项**：
 - 如果缺少 Python 包或前端依赖，`start.py` 会自动检测并提示安装（使用国内镜像源，无需科学上网）
-- sentence-transformers（含 PyTorch）较大（约 2.5 GB），首次安装需要几分钟
+- sentence-transformers（含 PyTorch）较大（约 2.5 GB），首次安装需要几十分钟
 - 嵌入模型（bge-large-zh-v1.5）首次使用时自动下载（通过 hf-mirror.com 国内镜像，约 1.3 GB）
 - 安装完成后关闭窗口，重新运行即可
 
@@ -335,7 +335,7 @@ python start.py
 | 问题 | 类型 |
 |------|------|
 | 四皇会战发生在哪一年？ | 事实检索（泰拉历） |
-| 2024年有哪些活动？ | 版本检索（现实时间） |
+| 2026年有哪些活动？ | 版本检索（现实时间） |
 | 最新活动是什么？ | 版本检索（现实时间） |
 | 乌萨斯学生自治团和整合运动的关系是什么？ | 关系分析 |
 | 分析莫斯提马的人格特点 | 人物画像 |
@@ -358,7 +358,7 @@ python start.py
 
 ---
 
-## 项目结构
+## 完整项目结构
 
 ```
 ├── start.py              # 一键启动脚本（环境检查 + 自动安装 + 启动服务）
