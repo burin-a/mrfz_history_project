@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --font-display: "Rajdhani", "Orbitron", "Noto Sans SC", sans-serif;
+
+  /* Arknights color system */
+  --ark-bg-deep: #0a0a1a;
+  --ark-bg-card: #1a1a2e;
+  --ark-bg-panel: #0d0d24;
+  --ark-accent: #4fc3f7;
+  --ark-accent-dim: #2a7a9c;
+  --ark-border: rgba(255, 255, 255, 0.06);
+  --ark-border-accent: rgba(79, 195, 247, 0.15);
+  --ark-text: #e0e0e0;
+  --ark-text-dim: #8892b0;
+  --ark-text-muted: #5a6178;
+}
+
+/* Google Font: Rajdhani - loaded via <link> in index.html */
+
+/* ── Global ── */
+body {
+  margin: 0;
+  background: var(--ark-bg-deep);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: rgba(79, 195, 247, 0.2);
+  color: white;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(79, 195, 247, 0.2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(79, 195, 247, 0.35); }
+
+/* ── Animations ── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanLine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(79, 195, 247, 0.15); }
+  50% { box-shadow: 0 0 16px rgba(79, 195, 247, 0.3); }
+}
+
+@keyframes blinkCursor {
+  0%, 50% { border-right-color: var(--ark-accent); }
+  51%, 100% { border-right-color: transparent; }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.ark-fade-in {
+  animation: fadeSlideIn 0.3s ease-out both;
+}
+
+.ark-scan-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.ark-scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ark-accent), transparent);
+  animation: scanLine 2s ease-in-out infinite;
+}
+
+/* ── Cut corner utility ── */
+.ark-cut {
+  clip-path: polygon(
+    0 0, calc(100% - 8px) 0, 100% 8px,
+    100% 100%, 8px 100%, 0 calc(100% - 8px)
+  );
+}
+
+.ark-cut-sm {
+  clip-path: polygon(
+    0 0, calc(100% - 5px) 0, 100% 5px,
+    100% 100%, 5px 100%, 0 calc(100% - 5px)
+  );
+}
+
+/* ── Corner brackets decoration ── */
+.ark-brackets {
+  position: relative;
+}
+
+.ark-brackets::before,
+.ark-brackets::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.ark-brackets::before {
+  top: -1px; left: -1px;
+  border-top: 1.5px solid var(--ark-accent);
+  border-left: 1.5px solid var(--ark-accent);
+}
+
+.ark-brackets::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 1.5px solid var(--ark-accent);
+  border-right: 1.5px solid var(--ark-accent);
+}
+
+/* ── Gradient divider ── */
+.ark-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(79, 195, 247, 0.3) 20%,
+    rgba(79, 195, 247, 0.3) 80%,
+    transparent
+  );
+}
+
+/* ── Tabular nums ── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
