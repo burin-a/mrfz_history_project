@@ -433,18 +433,12 @@ A: 任何兼容 OpenAI API 格式的模型服务都可以，包括 DeepSeek、Ki
 
 ---
 
-## 致谢与数据来源
-
-本项目基于以下开放项目构建，在此表示感谢：
+## 数据来源
 
 - **[ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData)**（by Kengxxiao）— 《明日方舟》中文游戏数据仓库，本项目的主要数据来源
 - **[PRTS Wiki](https://prts.wiki/)** — 明日方舟中文 Wiki，泰拉年表数据来源
 
-## 许可证
-
-本项目采用双许可证：
-
-- **代码**（所有 `.py`, `.js`, `.jsx` 等文件）：使用 [MIT License](./LICENSE-CODE)。
-- **文档与数据**（`README.md`, `data/` 目录等）：使用 [CC BY-SA 4.0](./LICENSE-DATA)。
+- **另外**:
+- **预置数据与知识库**（data/ 目录）：仅供个人学习，禁止商用。数据版权归属鹰角网络，本项目不授予任何第三方对该数据的商业使用权。
 ---
 
