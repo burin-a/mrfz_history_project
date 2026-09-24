@@ -17,9 +17,9 @@
   - **现实时间**：每个活动剧情块标注中国服现实开放时间（如"2026年6月"），可回答"最新活动"、"某年某月活动"等版本相关问题
 - **多模型支持**：兼容任何 OpenAI API 格式的大模型（DeepSeek、Kimi、通义千问、Ollama 等）
 - **多轮对话**：保持上下文连贯
-- **一键更新知识库**：前端点击即可完成 git pull → 数据解析 → 增量重建向量库全流程
+- **一键更新知识库**：前端点击即可完成 git pull → 数据解析 → 增量重建向量库全流程，耗时步骤实时推送子进程输出，显示已用时间，失败可一键重试
 - **增量向量更新**：只对变更的文本块重新计算 embedding，小活动更新从 5 分钟降至秒级
-- **数据更新检查**：自动检测 ArknightsGameData 仓库是否有新版本
+- **数据更新检查**：通过 git ls-remote 检测 ArknightsGameData 仓库是否有新版本，不依赖 GitHub API，无频率限制
 - **BGM 播放器**：内置游戏音乐播放器，支持播放/暂停/切歌/音量调节
 - **一键启动**：自动检查环境、安装依赖、启动服务
 
@@ -62,7 +62,7 @@
 |------|---------|------|
 | [start.py](start.py) | subprocess / urllib / webbrowser | 一键启动入口：环境检查 → 启动后端 → 启动前端 → 打开浏览器；Ctrl+C 停止所有子进程 |
 | [check_deps.py](check_deps.py) | pip / npm / winget | 独立依赖检查与自动安装（Python 包、Node 模块、Git），使用国内镜像源 |
-| [server.py](server.py) | FastAPI / Uvicorn / SSE | 后端 API 服务：会话管理（线程安全）、流式聊天（SSE）、配置接口、更新检查、一键更新知识库（SSE 进度推送） |
+| [server.py](server.py) | FastAPI / Uvicorn / SSE | 后端 API 服务：会话管理（线程安全）、流式聊天（SSE）、配置接口、更新检查（git ls-remote，无 API 限流）、一键更新知识库（SSE 流式心跳进度） |
 | [agent.py](agent.py) | OpenAI SDK / sentence-transformers / ChromaDB | RAG Agent 核心：System Prompt 驱动、Function Calling 自主检索、多轮工具调用（最多 8 轮）、真流式输出、BGE 模型单例共享 |
 | [vector_store.py](vector_store.py) | sentence-transformers / ChromaDB | 向量库构建器：读取 chunks → bge-large-zh 计算 embedding → 写入 ChromaDB；支持增量更新（对比文本 hash 跳过未变更块）和全量重建 |
 | [github_crawler.py](github_crawler.py) | json / os | 游戏数据解析器：遍历 ArknightsGameData 仓库，解析 6 类数据（剧情/模组/档案/语音/皮肤/集成战略），附加现实时间标签和覆盖范围摘要 |
@@ -148,8 +148,8 @@ POST /api/update-data (SSE)
     ├─ [5] import_timeline.py 导入年表（如存在）
     └─ [6] 检查应用版本 + 清除旧会话
     │
-    ▼  全程 SSE 推送进度
-前端 UpdateOverlay 显示进度条 + 步骤
+    ▼  全程 SSE 推送进度（耗时步骤每 ~1.5 秒心跳，附带子进程实时输出）
+前端 UpdateOverlay 显示进度条 + 步骤 + 已用时间，失败可直接重试
 ```
 
 ---
@@ -422,8 +422,8 @@ A: 尝试切换更强大的模型，或更换为 Kimi、通义千问等其他服
 ### Q: 如何更新知识库？
 A: 启动服务后，在前端侧边栏点击"一键更新知识库"即可，会自动拉取最新数据并增量重建向量库。
 
-### Q: 检查更新提示超时？
-A: 这是国内访问 GitHub API 不稳定导致，稍后重试即可，不影响正常对话功能。
+### Q: 检查更新提示超时或无法连接？
+A: 检查更新需访问 github.com 拉取远程版本信息（走 git 协议，无 API 频率限制）。请检查网络后重试，不影响正常对话功能。
 
 ### Q: 可以离线使用吗？
 A: 不行。知识库和嵌入模型是本地的，但 AI 推理需要在线调用大语言模型 API。
