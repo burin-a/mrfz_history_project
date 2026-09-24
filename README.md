@@ -1,4 +1,4 @@
-# 明日方舟剧情史学家（非构史学家
+# 明日方舟剧情史学家（非构史学家）
 
 基于 RAG（检索增强生成）的《明日方舟》剧情问答 AI 助手。使用本地知识库检索 + 大语言模型，回答关于游戏剧情、角色、世界观的问题。
 
@@ -81,7 +81,7 @@
 | [MessageBubble.jsx](web/src/components/MessageBubble.jsx) | react-markdown | 消息气泡：Markdown 渲染 + token 用量统计 |
 | [InputArea.jsx](web/src/components/InputArea.jsx) | React | 输入框 + 发送/重置按钮 |
 | [SettingsPanel.jsx](web/src/components/SettingsPanel.jsx) | React | 模型设置弹窗：API Key / Base URL / 模型名称 |
-| [UpdateOverlay.jsx](web/src/components/UpdateOverlay.jsx) | React | 全屏更新覆盖层：进度条 + 步骤提示 + 完成刷新 |
+| [UpdateOverlay.jsx](web/src/components/UpdateOverlay.jsx) | React | 全屏更新覆盖层：进度条 + 步骤提示 + 已用时间 + 失败重试 + 完成刷新 |
 | [MusicBox.jsx](web/src/components/MusicBox.jsx) | HTML5 Audio API | BGM 播放器：播放控制 / 进度条 / 音量 / 曲目列表 |
 | [ErrorBoundary.jsx](web/src/components/ErrorBoundary.jsx) | React Error Boundary | 全局错误边界：白屏降级 UI + 刷新按钮 |
 
@@ -353,8 +353,8 @@ python start.py
 
 ### 更新知识库
 
-- **检查更新**：点击侧边栏"检查更新"，检测 ArknightsGameData 仓库是否有新版本
-- **一键更新**：点击"一键更新知识库"，自动完成 git pull → 数据解析 → 增量重建向量库全流程，前端实时显示进度
+- **检查更新**：点击侧边栏"检查更新"，通过 git ls-remote 检测 ArknightsGameData 仓库是否有新版本（不依赖 GitHub API，无频率限制）
+- **一键更新**：点击"一键更新知识库"，自动完成 git pull → 数据解析 → 增量重建向量库全流程，前端实时显示进度与已用时间，失败可直接重试
 
 ---
 
