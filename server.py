@@ -297,47 +297,69 @@ def reset(req: ResetRequest):
     return {"success": False, "reason": "session not found"}
 
 
+# 短缓存：仅做去抖，避免极端高频点击重复建立网络连接
+# （git ls-remote 走 git 协议不受 api.github.com 限流，无需长 TTL）
+_check_cache = {"ts": 0, "result": None}
+_CHECK_CACHE_TTL = 60
+
+
 @app.get("/api/check-update")
 def check_update():
-    """检查 ArknightsGameData 仓库是否有更新"""
+    """检查 ArknightsGameData 仓库是否有更新
+
+    通过 git ls-remote 获取远程 master 的 commit SHA（走 git 协议端点
+    github.com/.../xxx.git，不依赖 api.github.com，不受未认证 REST API
+    60次/小时限制）。
+    """
     repo_dir = BASE_DIR.parent / "ArknightsGameData"
     sha_file = BASE_DIR / "data" / ".last_repo_sha"
 
     if not repo_dir.exists():
         return {"status": "warning", "message": "本地数据源仓库不存在"}
 
-    try:
-        import urllib.request
-        url = "https://api.github.com/repos/Kengxxiao/ArknightsGameData/commits/master"
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-        })
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        remote_sha = data.get("sha", "")
-        local_sha = sha_file.read_text().strip() if sha_file.exists() else ""
+    # 短缓存去抖：60 秒内重复请求直接返回上次结果
+    now = time.time()
+    cached = _check_cache["result"]
+    if cached and (now - _check_cache["ts"]) < _CHECK_CACHE_TTL:
+        return {**cached, "cached": True}
 
-        if remote_sha == local_sha:
-            return {"status": "up_to_date", "message": "数据源已是最新版本"}
-        else:
-            commit_msg = data.get("commit", {}).get("message", "")[:60]
-            return {
-                "status": "update_available",
-                "message": f"发现新版本: {commit_msg}",
-                "hint": "cd ../ArknightsGameData && git pull && cd ../mrfz_history_project && python github_crawler.py && python vector_store.py",
-            }
+    git = _git_cmd()
+    if not git:
+        return {"status": "error", "message": "未检测到 Git，请先安装 Git"}
+
+    try:
+        result = subprocess.run(
+            [git, "ls-remote", REPO_GIT_URL, "refs/heads/master"],
+            capture_output=True, text=True, timeout=30, encoding="utf-8",
+        )
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "请求超时，请检查网络连接"}
+    except FileNotFoundError:
+        return {"status": "error", "message": "未检测到 Git，请先安装 Git"}
     except Exception as e:
-        err_name = type(e).__name__
-        if "timeout" in str(e).lower() or "timed out" in str(e).lower():
-            return {"status": "error", "message": "GitHub API 请求超时，请检查网络连接"}
-        if err_name == "HTTPError" and e.code == 403:
-            return {"status": "error", "message": "GitHub API 请求过于频繁，请稍后再试"}
-        if err_name == "HTTPError":
-            return {"status": "error", "message": f"GitHub 返回错误 (HTTP {e.code})"}
-        if "urlerror" in err_name.lower() or "connectionerror" in err_name.lower():
+        return {"status": "error", "message": f"检查失败: {type(e).__name__}"}
+
+    if result.returncode != 0:
+        err = (result.stderr or "").strip()
+        el = err.lower()
+        if "could not resolve host" in el or "timed out" in el:
             return {"status": "error", "message": "无法连接 GitHub，请检查网络"}
-        return {"status": "error", "message": f"检查失败: {err_name}"}
+        return {"status": "error", "message": f"检查失败: {err[:80]}"}
+
+    # 输出格式：<sha>\trefs/heads/master
+    remote_sha = result.stdout.strip().split()[0] if result.stdout.strip() else ""
+    if not remote_sha:
+        return {"status": "error", "message": "未能获取远程版本信息"}
+
+    local_sha = sha_file.read_text().strip() if sha_file.exists() else ""
+    if remote_sha == local_sha:
+        out = {"status": "up_to_date", "message": "数据源已是最新版本"}
+    else:
+        out = {"status": "update_available", "message": "发现新版本，可点击「一键更新知识库」"}
+
+    _check_cache["ts"] = now
+    _check_cache["result"] = out
+    return out
 
 
 # ======== 一键更新知识库 ========
@@ -394,6 +416,94 @@ def _run_step(cmd, cwd=None, timeout=900):
         return False, "命令执行超时"
     except Exception as e:
         return False, str(e)
+
+
+def _stream_step(cmd, cwd, timeout, label, step_name, p_start, p_end, result):
+    """流式执行子进程，周期性推送心跳 SSE。
+
+    子进程的 stdout/stderr 逐行读取，每隔约 1.5 秒推送一次心跳事件，
+    进度在 [p_start, p_end] 区间内按已用时间渐近推进（半饱和约 25 秒），
+    保证长时间运行的步骤也能持续给前端反馈，避免“假死”观感。
+
+    结果写入 result dict: {"ok": bool, "msg": str}。
+    失败时已推送 error 事件，调用方在 yield from 后只需检查 result["ok"]。
+    """
+    def _sse(progress, message, step):
+        update_state.update({"progress": progress, "message": message, "step": step})
+        return f"data: {json.dumps({'progress': progress, 'message': message, 'step': step}, ensure_ascii=False)}\n\n"
+
+    def _err(message):
+        update_state["error"] = message
+        return f"data: {json.dumps({'error': message}, ensure_ascii=False)}\n\n"
+
+    yield _sse(p_start, f"{label}...", step_name)
+
+    try:
+        proc = subprocess.Popen(
+            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1,
+        )
+    except Exception as e:
+        result["ok"], result["msg"] = False, str(e)
+        yield _err(f"{label}启动失败: {e}")
+        return
+
+    collected = []
+    start = time.time()
+    last_beat = start
+    timed_out = False
+    try:
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            collected.append(line)
+            now = time.time()
+            if now - start > timeout:
+                timed_out = True
+                break
+            if now - last_beat >= 1.5:
+                tail = line.strip()[:70]
+                elapsed = now - start
+                frac = elapsed / (elapsed + 25)
+                cur = int(p_start + (p_end - 3 - p_start) * frac)
+                msg = f"{label}：{tail}" if tail else f"{label}中..."
+                yield _sse(cur, msg, step_name)
+                last_beat = now
+        proc.wait()
+    except Exception as e:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        result["ok"], result["msg"] = False, str(e)
+        yield _err(f"{label}出错: {e}")
+        return
+
+    if timed_out:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        result["ok"], result["msg"] = False, "命令执行超时"
+        yield _err(f"{label}超时")
+        return
+
+    output = "".join(collected)
+    ok = proc.returncode == 0
+    result["ok"], result["msg"] = ok, output[-400:]
+    if not ok:
+        # 识别 .git 权限拒绝（常见于 IDE 沙箱环境），给出可操作提示
+        if "Permission denied" in output and ".git" in output:
+            hint = (
+                f"{label}失败：Git 无写入权限。"
+                "请从 Windows 终端（非 IDE 内置终端）启动后端后重试。"
+            )
+            yield _err(hint)
+        else:
+            yield _err(f"{label}失败: {output[-400:]}")
+        return
+    yield _sse(p_end, f"{label}完成", step_name)
 
 
 def _check_app_version():
@@ -485,29 +595,24 @@ def update_data():
 
             # Step 2: 拉取 / 克隆游戏数据
             if repo_dir.exists() and (repo_dir / ".git").exists():
-                yield _emit(15, "正在拉取游戏数据更新...", "git_pull")
-                ok, msg = _run_step([git, "pull"], cwd=str(repo_dir))
-                if not ok:
-                    update_state["error"] = f"数据拉取失败: {msg}"
-                    err = json.dumps(
-                        {"error": f"数据拉取失败: {msg}"}, ensure_ascii=False,
-                    )
-                    yield f"data: {err}\n\n"
+                _r = {}
+                yield from _stream_step(
+                    [git, "pull"], str(repo_dir), 600,
+                    "拉取游戏数据更新", "git_pull", 15, 30, _r,
+                )
+                if not _r.get("ok"):
                     return
-                yield _emit(30, "游戏数据拉取完成", "git_pull")
             else:
-                yield _emit(15, "首次使用，正在克隆游戏数据仓库（需几分钟）...", "git_clone")
-                ok, msg = _run_step(
+                _r = {}
+                yield from _stream_step(
                     [git, "clone", "--depth", "1", "--filter=blob:none",
                      "--sparse", REPO_GIT_URL, str(repo_dir)],
+                    None, 1200,
+                    "克隆游戏数据仓库", "git_clone", 15, 28, _r,
                 )
-                if not ok:
-                    update_state["error"] = f"仓库克隆失败: {msg}"
-                    err = json.dumps(
-                        {"error": f"仓库克隆失败: {msg}"}, ensure_ascii=False,
-                    )
-                    yield f"data: {err}\n\n"
+                if not _r.get("ok"):
                     return
+                # sparse-checkout 较快，保持同步
                 ok, msg = _run_step(
                     [git, "sparse-checkout", "set",
                      "zh_CN/gamedata/story", "zh_CN/gamedata/excel"],
@@ -523,28 +628,22 @@ def update_data():
                 yield _emit(30, "游戏数据克隆完成", "git_clone")
 
             # Step 3: 解析剧情数据
-            yield _emit(35, "正在解析剧情文本...", "crawl")
-            ok, msg = _run_step([python, "github_crawler.py"], cwd=str(BASE_DIR))
-            if not ok:
-                update_state["error"] = f"数据解析失败: {msg}"
-                err = json.dumps(
-                    {"error": f"数据解析失败: {msg}"}, ensure_ascii=False,
-                )
-                yield f"data: {err}\n\n"
+            _r = {}
+            yield from _stream_step(
+                [python, "-u", "github_crawler.py"], str(BASE_DIR), 900,
+                "解析剧情文本", "crawl", 35, 60, _r,
+            )
+            if not _r.get("ok"):
                 return
-            yield _emit(60, "剧情文本解析完成", "crawl")
 
             # Step 4: 构建向量库
-            yield _emit(65, "正在构建向量库（需要几分钟）...", "vector")
-            ok, msg = _run_step([python, "vector_store.py"], cwd=str(BASE_DIR))
-            if not ok:
-                update_state["error"] = f"向量库构建失败: {msg}"
-                err = json.dumps(
-                    {"error": f"向量库构建失败: {msg}"}, ensure_ascii=False,
-                )
-                yield f"data: {err}\n\n"
+            _r = {}
+            yield from _stream_step(
+                [python, "-u", "vector_store.py"], str(BASE_DIR), 1800,
+                "构建向量库", "vector", 65, 90, _r,
+            )
+            if not _r.get("ok"):
                 return
-            yield _emit(90, "向量库构建完成", "vector")
 
             # Step 5: 导入泰拉年表（如存在原始文件）
             timeline_file = BASE_DIR / "data" / "timeline_raw.txt"

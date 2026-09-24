@@ -1,9 +1,25 @@
-import { Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Loader2, CheckCircle2, AlertCircle, RefreshCw, RotateCcw } from "lucide-react"
 import useChatStore from "../store/chatStore"
 
 export default function UpdateOverlay() {
   const dataUpdate = useChatStore((s) => s.dataUpdate)
   const clearDataUpdate = useChatStore((s) => s.clearDataUpdate)
+  const runDataUpdate = useChatStore((s) => s.runDataUpdate)
+
+  // 已用时间计时（仅在进行中累计）
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!dataUpdate.inProgress) {
+      setElapsed(0)
+      return
+    }
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(t)
+  }, [dataUpdate.inProgress])
+
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0")
+  const ss = String(elapsed % 60).padStart(2, "0")
 
   // 不在更新中、且未完成（或已清除）→ 不显示
   if (!dataUpdate.inProgress && !dataUpdate.done) return null
@@ -52,7 +68,7 @@ export default function UpdateOverlay() {
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px]" style={{ color: "#5a6178" }}>更新期间暂不可提问，请耐心等待</span>
+              <span className="text-[10px]" style={{ color: "#5a6178" }}>已用 {mm}:{ss} · 更新期间暂不可提问</span>
               <span className="text-[11px] tabular-nums font-medium" style={{ color: "#4fc3f7" }}>{dataUpdate.progress}%</span>
             </div>
           </>
@@ -83,7 +99,7 @@ export default function UpdateOverlay() {
           </>
         )}
 
-        {/* 失败：显示错误 + 关闭 */}
+        {/* 失败：显示错误 + 重试 + 关闭 */}
         {!dataUpdate.inProgress && isError && (
           <>
             <p className="text-[13px] mb-2" style={{ color: "#ff6b6b" }}>{dataUpdate.error}</p>
@@ -95,6 +111,14 @@ export default function UpdateOverlay() {
                 style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.08)", color: "#8892b0" }}
               >
                 关闭
+              </button>
+              <button
+                onClick={() => runDataUpdate()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-[12px] cursor-pointer transition-all duration-200 ark-cut-sm"
+                style={{ background: "rgba(79,195,247,0.12)", border: "1px solid rgba(79,195,247,0.3)", color: "#4fc3f7" }}
+              >
+                <RotateCcw size={13} />
+                重试
               </button>
             </div>
           </>
